@@ -1,1199 +1,640 @@
- #include "cachesim.hpp"
-#include<math.h>
-#include<cstdio>
-#include<iostream>
-#include<stdlib.h>
-#include<iomanip>
-
+#include "cachesim.hpp"
+#include "cachesim_prediction.cpp"
+#include "cachesim_prediction.hpp"
+#include <cstdio>
+#include <math.h>
+#include <iostream>
 using namespace std;
 
-
-struct set
+struct store
 {
-	uint64_t tage;
-	int v;
-	int d;
+	uint64_t tag;
+	int lruCounter;
+	bool dirtyBit;
 };
 
-struct index
+int C1, B1, S1;
+int C2, B2, S2;
+int C3, B3, S3;
+int L1_numIndices, L1_numWays, L1_blockSize;
+int L2_numIndices, L2_numWays, L2_blockSize;
+int L3_numIndices, L3_numWays, L3_blockSize;
+int maxValue, maxIndex;
+
+store L1_tagStore[17000][600];
+store L2_tagStore[17000][600];
+store L3_tagStore[17000][600];
+
+// Debug stuff
+uint64_t L1_wb = 0;
+uint64_t L2_wb = 0;
+int mode = 4;
+float hr_l1 = 0;
+float hr_l2 = 0;
+float hr_l3 = 0;
+float mr_l1 = 0;
+float mr_l2 = 0;
+float mr_l3 = 0;
+
+void setup_cache(uint64_t c1, uint64_t b1, uint64_t s1, uint64_t c2, uint64_t b2, uint64_t s2, uint64_t c3, uint64_t b3, uint64_t s3) 
 {
-	struct set *p1, *p2, *p3;  				// 1 for each cahe
-}*pt1, *pt2, *pt3;							// 1 for each cache
+	// Setting up cache using the dimensions (C1, B1, S1)
+	C1 = c1; 
+	B1 = b1; 
+	S1 = s1;
+	C2 = c2; 
+	B2 = b2; 
+	S2 = s2;
+	C3 = c3; 
+	B3 = b3; 
+	S3 = s3;
 
-uint64_t isize, ssize, indexno, d2size, isize1, ssize1, d2size1, isize2, ssize2, d2size2;
-uint64_t **lru1, **lru2, **lru3;
-uint64_t readd;
-uint64_t lmba[3] = {0x00,0x00,0x00};// creating an array for last 3 block misses (1=current block miss | 2= previous block miss | 3= prior to previous block miss)
-uint64_t d=0,pen_stride=0;
-uint64_t C1, B1, S1, K, C2, B2, S2, C3, B3, S3;					//global copies for C, B, S
-void l2access(uint64_t add2, char rw, cache_stats_t* p_stats);  //function for l2 access
-void l3access(uint64_t add3, char rw, cache_stats_t* p_stats);  //function for l3 access
-uint64_t *astore=new uint64_t[K];
-
-//int B2;
-int l2_HashTable[512];
-float l2_NormHashTable[512];
-int accesses = 0;
-
-int l3_HashTable[512];
-float l3_NormHashTable[512];
-
-bool using_norm = true;
-
-int l2_correct_true = 0;
-int l2_correct_false = 0;
-int l2_wrong_true = 0;
-int l2_wrong_false = 0;
-
-int l3_correct_true = 0;
-int l3_correct_false = 0;
-int l3_wrong_true = 0;
-int l3_wrong_false = 0;
-
-/**
- * Subroutine for initializing the cache. You many add and initialize any global or heap
- * variables as needed.
- *
- * @c1 Total size of L1 in bytes is 2^C1
- * @b1 Size of each block in L1 in bytes is 2^B1
- * @s1 Number of blocks per set in L1 is 2^S1
- * @c2 Total size of L2 in bytes is 2^C2
- * @b2 Size of each block in L2 in bytes is 2^B2
- * @s2 Number of blocks per set in L2 is 2^S2
- * @k Prefetch K subsequent blocks
- */
-void setup_cache(uint64_t c1, uint64_t b1, uint64_t s1, uint64_t c2, uint64_t b2, uint64_t s2, uint64_t c3, uint64_t b3, uint64_t s3, uint32_t k) 
-{
-	B2 = b2;
-	B3 = b3;
-
-	isize=pow(2,c1-b1-s1);
-	ssize=pow(2,s1);
-	d2size=ssize*isize;
-	isize1=pow(2,c2-b2-s2);
-	ssize1=pow(2,s2);
-	d2size1=ssize1*isize1;
-	isize2=pow(2,c3-b3-s3);
-	ssize2=pow(2,s3);
-	d2size2=ssize2*isize2;
-
-    // Code for making LRU block
-
-	lru1=new uint64_t*[d2size];
-	for(uint64_t i=0;i<isize;i++)
-		lru1[i]=new uint64_t[ssize];				//lru array initialization for level 1 cache
-
-	for(uint64_t i=0;i<isize;i++)
+	// Computing the number of indices and number of blocks per set (number of ways)
+	L1_numIndices = pow(2, C1-B1-S1);
+	L1_numWays = pow(2,S1);  
+	  
+	// Initializing the Two Dimensional Array of Structures (Tag Store)
+	for(int i = 0; i < L1_numIndices; i++)
 	{
-		for(uint64_t j=0;j<ssize;j++)
-		{	
-			lru1[i][j]=0x00;
-		}
-	}
-
-	lru2=new uint64_t*[d2size1];
-	for(uint64_t i=0;i<isize1;i++)
-		lru2[i]=new uint64_t[ssize1];				//lru array initialization for level 2 cache
-
-	for(uint64_t i=0;i<isize1;i++)
-	{
-		for(uint64_t j=0;j<ssize1;j++)
-		{	
-			lru2[i][j]=0x00;
-		}
-	}
-	
-	lru3=new uint64_t*[d2size2];
-	for(uint64_t i=0;i<isize2;i++)
-		lru3[i]=new uint64_t[ssize2];				//lru array initialization for level 3 cache
-
-	for(uint64_t i=0;i<isize2;i++)
-	{
-		for(uint64_t j=0;j<ssize2;j++)
-		{	
-			lru3[i][j]=0x00;
-		}
-	}
-
-	// let's create caches
-	// 1st the level one cache
-
-	if(s1==0)
-		cout<<"generating direct mapped cache for l1 \n";
-	else if (s1==c1-b1)
-		cout<<"generating fully associative cache for l1 \n";
-	else 
-		cout<<"generating set associative cache for l1 \n";
-	pt1= new index[isize];
-	for(uint64_t i=0;i<isize;i++)
-		pt1[i].p1=new set[ssize];;
-	
-	for (uint64_t i=0;i<isize;i++)
-	{
-		for(uint64_t j=0;j<ssize;j++)
+		for(int j = 0; j < L1_numWays; j++)
 		{
-			pt1[i].p1[j].tage=0x00;
-			pt1[i].p1[j].v=0;
-			pt1[i].p1[j].d=0;
-		}
-	}
-		
-	// 2nd the level 2 cache
-	if(s2==0)
-		cout<<"generating direct mapped cache for l2 \n";
-	else if (s2==c2-b2)
-		cout<<"generating fully associative cache for l2 \n";
-	else 
-		cout<<"generating set associative cache for l2 \n";
-	pt2= new index[isize1];
-	for(uint64_t i=0;i<isize1;i++)
-		pt2[i].p2=new set[ssize1];
+			L1_tagStore[i][j].tag = 0;
+			L1_tagStore[i][j].lruCounter = 0;
+			L1_tagStore[i][j].dirtyBit = 0;
+		} 
+	}  
 	
-	for (uint64_t i=0;i<isize1;i++)
+	// Setting up cache using the dimensions (C2, B2, S2)
+	
+	// Computing the number of indices and number of blocks per set (number of ways)
+	L2_numIndices = pow(2, C2-B2-S2);
+	L2_numWays = pow(2,S2);  
+	  
+	// Initializing the Two Dimensional Array of Structures (Tag Store)
+	for(int i = 0; i < L2_numIndices; i++)
 	{
-		for(uint64_t j=0;j<ssize1;j++)
+		for(int j = 0; j < L2_numWays; j++)
 		{
-			pt2[i].p2[j].tage=0x00;
-			pt2[i].p2[j].v=0;
-			pt2[i].p2[j].d=0;
-		}
-	}
+			L2_tagStore[i][j].tag = 0;
+			L2_tagStore[i][j].lruCounter = 0;
+			L2_tagStore[i][j].dirtyBit = 0;
+		} 
+	}  
+	 
+	// Setting up cache using the dimensions (C3, B3, S3)
 	
-	// 3rd the level 3 cache
-	if(s3==0)
-		cout<<"generating direct mapped cache for l3 \n";
-	else if (s3==c3-b3)
-		cout<<"generating fully associative cache for l3 \n";
-	else 
-		cout<<"generating set associative cache for l3 \n";
-	pt3= new index[isize2];
-	for(uint64_t i=0;i<isize2;i++)
-		pt3[i].p3=new set[ssize2];
-	
-	for (uint64_t i=0;i<isize2;i++)
+	// Computing the number of indices and number of blocks per set (number of ways)
+	L3_numIndices = pow(2, C3-B3-S3);
+	L3_numWays = pow(2,S3);  
+	  
+	// Initializing the Two Dimensional Array of Structures (Tag Store)
+	for(int i = 0; i < L3_numIndices; i++)
 	{
-		for(uint64_t j=0;j<ssize2;j++)
+		for(int j = 0; j < L3_numWays; j++)
 		{
-			pt3[i].p3[j].tage=0x00;
-			pt3[i].p3[j].v=0;
-			pt3[i].p3[j].d=0;
-		}
-	}
+			L3_tagStore[i][j].tag = 0;
+			L3_tagStore[i][j].lruCounter = 0;
+			L3_tagStore[i][j].dirtyBit = 0;
+		} 
+	} 
 	
-	cout << endl;	
-	
-	C1=c1;
-	B1=b1;
-	S1=s1;
-	K=k;
-	C2=c2;
-	B2=b2;
-	S2=s2;
-	C3=c3;
-	B3=b3;
-	S3=s3;
-
-	for (int i = 0; i < 512; i += 1)
-	{
-		l2_HashTable[i] = 0;
-		l2_NormHashTable[i] = 0.0;
-		l3_HashTable[i] = 0;
-		l3_NormHashTable[i] = 0.0;
-	}
-
+	// Initializing the prediction
+	initPrediction();
 }
-
-/**
- * Subroutine that simulates the cache one trace event at a time.
- *
- * @rw The type of event. Either READ or WRITE
- * @address  The target memory address
- * @p_stats Pointer to the statistics structure
- */
- 
-bool getPrediction(uint64_t address, cache_stats_t* p_stats, int level)
-{
-	// Take address, generate hashes, map the hashes in the Hash table, and predict
-	
-	// Generating hashes
-	//int hash1, hash2, hash3;
-	
-	if(level == 2)
-	{
-		// Program for Hashing function 1
-
-		uint64_t mask = pow(2, 32) - 1;
-		uint64_t addr_LSB = mask & address;
-		uint64_t addr_MSB = address >> 32;
-
-		//cout << "LSB Address: " << addr_LSB << endl;
-		//cout << "MSB Address: " << addr_MSB << endl;
-
-		uint64_t temp = addr_LSB ^ addr_MSB;
-		//cout << "Result of XOR: " << temp << endl;
-		uint64_t mask2 = pow(2, 9) - 1;
-		uint64_t hash1 = mask2 & temp;
-	
-		// Program for Hashing function 2
-		// Find temp_address by shifting 'B' bits
-		uint64_t temp1_address = address >> B2;   
-
-		// To find out the index, we will generate a mask first
-		uint64_t mask1 = pow(2,C2-B2-S2) - 1;
-		uint64_t index1 = temp1_address & mask1;
-		  
-		// Find Tag by shifting 'C-S' bits
-		uint64_t tag1 = address >> (C2-S2);
-	
-		uint64_t temporary = index1 ^ tag1;
-		uint64_t new_mask = pow(2, 12) - 1;
-		uint64_t hash2 = temporary & new_mask;
-		hash2 = hash2 / 8;
-	
-		// Finding max value in L2 Hash Table
-		int max = 0;
-		for (int i = 0; i < 512; i += 1)
-		{
-			if(l2_HashTable[i] > max)
-				max = l2_HashTable[i];
-		}
-	
-		for (int i = 0; i < 512; i += 1)
-		{
-			l2_NormHashTable[i] = (float)l2_HashTable[i] / (float)accesses * 10000;
-		}
-	
-		bool prediction = false;
-	
-		// Prediction Section
-		if(!using_norm)
-		{
-			if (l2_HashTable[hash1] == 0 || l2_HashTable[hash2] == 0)
-			{
-				p_stats->l2_pred_0_20++;
-			}	
-	
-			else
-			{
-				int average = (l2_HashTable[hash1] + l2_HashTable[hash2]) / 2;
-				//cout << "Average: " << average << endl;
-		
-				if (average >= 1000)
-				{
-					p_stats->l2_pred_80_100++;
-				}
-		
-				else if (average >= 500 && average < 1000)
-				{
-					p_stats->l2_pred_60_80++;
-				}
-		
-				else if (average >= 250 && average < 500)
-				{
-					p_stats->l2_pred_40_60++;
-				}
-		
-				else if (average >= 0 && average < 250)
-				{
-					p_stats->l2_pred_20_40++;
-				}
-			}
-		}
-	
-		else if (using_norm)
-		{
-			if (l2_NormHashTable[hash1] == 0 || l2_NormHashTable[hash2] == 0)
-			{
-				p_stats->l2_pred_0_20++;
-			}	
-	
-			else
-			{
-				float average = (l2_NormHashTable[hash1] + l2_NormHashTable[hash2]) / 2;
-				//cout << "Average: " << average << endl;
-		
-				if (average >= 2.75)
-				{
-					p_stats->l2_pred_80_100++;
-				}
-		
-				else if (average >= 1.25 && average < 2.75)
-				{
-					p_stats->l2_pred_60_80++;
-				}
-		
-				else if (average >= 0.4 && average < 1.25)
-				{
-					p_stats->l2_pred_40_60++;
-				}
-		
-				else if (average > 0 && average < 0.4)
-				{
-					p_stats->l2_pred_20_40++;
-				}
-				
-				if (average >= 0.5)
-				{
-					prediction = true;
-				}
-			}
-		}
-		
-		return prediction;
-	}
-	
-	else if (level == 3)
-	{
-		// Program for Hashing function 1
-
-		uint64_t mask = pow(2, 32) - 1;
-		uint64_t addr_LSB = mask & address;
-		uint64_t addr_MSB = address >> 32;
-
-		//cout << "LSB Address: " << addr_LSB << endl;
-		//cout << "MSB Address: " << addr_MSB << endl;
-
-		uint64_t temp = addr_LSB ^ addr_MSB;
-		//cout << "Result of XOR: " << temp << endl;
-		uint64_t mask2 = pow(2, 9) - 1;
-		uint64_t hash1 = mask2 & temp;
-	
-		// Program for Hashing function 2
-		// Find temp_address by shifting 'B' bits
-		uint64_t temp1_address = address >> B2;   
-
-		// To find out the index, we will generate a mask first
-		uint64_t mask1 = pow(2,C2-B2-S2) - 1;
-		uint64_t index1 = temp1_address & mask1;
-		  
-		// Find Tag by shifting 'C-S' bits
-		uint64_t tag1 = address >> (C2-S2);
-	
-		uint64_t temporary = index1 ^ tag1;
-		uint64_t new_mask = pow(2, 12) - 1;
-		uint64_t hash2 = temporary & new_mask;
-		hash2 = hash2 / 8;
-	
-		// Finding max value in L3 Hash Table
-		int max = 0;
-		for (int i = 0; i < 512; i += 1)
-		{
-			if(l3_HashTable[i] > max)
-				max = l3_HashTable[i];
-		}
-	
-		for (int i = 0; i < 512; i += 1)
-		{
-			l3_NormHashTable[i] = (float)l3_HashTable[i] / (float)accesses * 10000;
-		}
-	
-		bool prediction = false;
-	
-		// Prediction Section
-		if (!using_norm)
-		{
-			if (l3_HashTable[hash1] == 0 || l3_HashTable[hash2] == 0)
-			{
-				p_stats->l3_pred_0_20++;
-			}	
-	
-			else
-			{
-				int average = (l3_HashTable[hash1] + l3_HashTable[hash2]) / 2;
-				//cout << "Average: " << average << endl;
-		
-				if (average >= 1000)
-				{
-					p_stats->l3_pred_80_100++;
-				}
-		
-				else if (average >= 500 && average < 1000)
-				{
-					p_stats->l3_pred_60_80++;
-				}
-		
-				else if (average >= 250 && average < 500)
-				{
-					p_stats->l3_pred_40_60++;
-				}
-		
-				else if (average >= 0 && average < 250)
-				{
-					p_stats->l3_pred_20_40++;
-				}
-			}
-		}
-		
-		else if (using_norm)
-		{
-			if (l3_NormHashTable[hash1] == 0 || l3_NormHashTable[hash2] == 0)
-			{
-				p_stats->l3_pred_0_20++;
-			}	
-	
-			else
-			{
-				float average = (l3_NormHashTable[hash1] + l3_NormHashTable[hash2]) / 2;
-				//cout << "Average: " << average << endl;
-		
-				if (average >= 2.75)
-				{
-					p_stats->l3_pred_80_100++;
-				}
-		
-				else if (average >= 1.25 && average < 2.75)
-				{
-					p_stats->l3_pred_60_80++;
-				}
-		
-				else if (average >= 0.4 && average < 1.25)
-				{
-					p_stats->l3_pred_40_60++;
-				}
-		
-				else if (average > 0 && average < 0.4)
-				{
-					p_stats->l3_pred_20_40++;
-				}
-				
-				if (average >= 0.4)
-				{
-					prediction = true;
-				}
-			}
-		}
-		
-		return prediction;
-	}
-	
-}
- 
-void hash1(uint64_t address, bool flag, int level)
-{
-	if (level == 2)
-	{
-		// Program for Hashing function 1
-		uint64_t mask = pow(2, 32) - 1;
-		uint64_t addr_LSB = mask & address;
-		uint64_t addr_MSB = address >> 32;
-
-		//cout << "LSB Address: " << addr_LSB << endl;
-		//cout << "MSB Address: " << addr_MSB << endl;
-
-		uint64_t temp = addr_LSB ^ addr_MSB;
-		//cout << "Result of XOR: " << temp << endl;
-		uint64_t mask2 = pow(2, 9) - 1;
-		uint64_t hash1 = mask2 & temp;
-		//cout << "Hash1: " << hash1 << endl;
-
-		if (flag)
-			l2_HashTable[hash1]++;
-		else
-			l2_HashTable[hash1] = l2_HashTable[hash1] / 2;
-	}
-	
-	else if (level == 3)
-	{
-		// Program for Hashing function 1
-		uint64_t mask = pow(2, 32) - 1;
-		uint64_t addr_LSB = mask & address;
-		uint64_t addr_MSB = address >> 32;
-
-		//cout << "LSB Address: " << addr_LSB << endl;
-		//cout << "MSB Address: " << addr_MSB << endl;
-
-		uint64_t temp = addr_LSB ^ addr_MSB;
-		//cout << "Result of XOR: " << temp << endl;
-		uint64_t mask2 = pow(2, 9) - 1;
-		uint64_t hash1 = mask2 & temp;
-		//cout << "Hash1: " << hash1 << endl;
-
-		if (flag)
-			l3_HashTable[hash1]++;
-		else
-			l3_HashTable[hash1] = l3_HashTable[hash1] / 2;
-	}
-	
-	// Done with Hashing
-} 
-
-void hash2(uint64_t address, bool flag, int level)
-{
-	if (level == 2)
-	{
-		// Find temp_address by shifting 'B' bits
-		uint64_t temp1_address = address >> B2;   
-
-		// To find out the index, we will generate a mask first
-		uint64_t mask1 = pow(2,C2-B2-S2) - 1;
-		uint64_t index1 = temp1_address & mask1;
-		  
-		// Find Tag by shifting 'C-S' bits
-		uint64_t tag1 = address >> (C2-S2);
-	
-		uint64_t temporary = index1 ^ tag1;
-		uint64_t new_mask = pow(2, 12) - 1;
-		uint64_t hash2 = temporary & new_mask;
-		hash2 = hash2 / 8;
-	
-		if (flag)
-			l2_HashTable[hash2]++;
-		else
-			l2_HashTable[hash2] = l2_HashTable[hash2] / 2;
-	}
-	
-	else if (level == 3)
-	{
-		// Find temp_address by shifting 'B' bits
-		uint64_t temp1_address = address >> B2;   
-
-		// To find out the index, we will generate a mask first
-		uint64_t mask1 = pow(2,C2-B2-S2) - 1;
-		uint64_t index1 = temp1_address & mask1;
-		  
-		// Find Tag by shifting 'C-S' bits
-		uint64_t tag1 = address >> (C2-S2);
-	
-		uint64_t temporary = index1 ^ tag1;
-		uint64_t new_mask = pow(2, 12) - 1;
-		uint64_t hash2 = temporary & new_mask;
-		hash2 = hash2 / 8;
-	
-		if (flag)
-			l3_HashTable[hash2]++;
-		else
-			l3_HashTable[hash2] = l3_HashTable[hash2] / 2;
-	}
-	
-} 
 
 void cache_access(char rw, uint64_t address, cache_stats_t* p_stats) 
 {
-	accesses++;
-
-	p_stats->L1_accesses++;
-	if(rw=='w')
-		p_stats->writes++;
+	p_stats->l1_accesses++;                                       // Incrementing the access counter after every cache access
+		
+	if(rw == 'r')                                                 // Checking if the current cache access is read or write
+		p_stats->l1_reads++;
 	else
-		p_stats->reads++;
+		p_stats->l1_writes++;
+	  
+	// Now we have to split the address
 
-	uint64_t tag;  
-	uint64_t ind;
-	uint64_t search;
-	uint64_t llast=pow(2,S1)-pow(2,0);
-
-	// Finding index and tag
-	uint64_t temp_address = address >> B1; 
+	// Find temp_address by shifting 'B1' bits
+	uint64_t temp_address = address >> B1;   
 
 	// To find out the index, we will generate a mask first
 	uint64_t mask = pow(2,C1-B1-S1) - 1;
-	ind = temp_address & mask;
-
-	// Find Tag by shifting 'C-S' bits
-	tag = address >> (C1-S1);
-	int hit = 0;
-
-	//Start searching in l1
-
-	//This loop is for cases when the block is already present and we just have to change the lru order and the attribute
-	for(int j=0;j<(pow(2,S1));j++)
-	{
-		// If there is a hit, we put the tag in the MRU position
-		if((pt1[ind].p1[j].tage==tag) && (pt1[ind].p1[j].v==1))
-		{
-		//cout<<"hit for tag "<<hex<<tag<<"and index"<<hex<<ind<<"  and address"<<address<<"in set "<<j<<"\n";
-			for(uint64_t i=0;i<ssize;i++)
-			{
-				if(tag==lru1[ind][i])
-				{
-					for(int k=i;k>0;k--)
-					{
-						lru1[ind][k]=lru1[ind][k-1];
-					}
-					p_stats->L1_hits++;
-					hit=1;
-					break;
-				}
-			}
+	uint64_t index = temp_address & mask;
+	  
+	// Find Tag by shifting 'C1-S1' bits
+	uint64_t tag = address >> (C1-S1);
 	
-		lru1[ind][0]=tag;
-		if(rw=='w')
-		{
-			pt1[ind].p1[j].d=1;
-		}
+	// Prediction begins
+	bool prediction;
+	
+	if(mode == 1)
+		prediction = getPrediction1(address, 1, p_stats->l1_accesses, p_stats, rw);
 		
-		break;
+	else if(mode == 2)
+		prediction = getPrediction2(1, rw);
+		
+	else if(mode == 3)
+		prediction = getPrediction3(1);
+		
+	else if(mode == 4)
+		prediction = getPrediction4(1, rw, address, p_stats);
+	// Prediction ends
+
+	// First increment the time-stamp of each ways.
+	for(int i = 0; i < L1_numWays; i++)
+	{
+		L1_tagStore[index][i].lruCounter++;
+	}
+	  
+	bool hit = 0;
+	// Check if there is a hit
+	for(int i = 0; i < L1_numWays; i++)
+	{
+		if(L1_tagStore[index][i].tag == tag)
+		{
+			L1_tagStore[index][i].lruCounter = 0;                	// Making it as MRU
+			p_stats->hits++;                                  		// Incrementing Hits counter
+			
+			// Prediction part begins
+			if(mode == 1)
+			{
+				updateHash1(address, 1, true);
+				updateHash2(address, 1, true);			
+			}
+				
+			else if(mode == 2)
+				updatePrediction2(true, 1, rw);
+				
+			else if(mode == 3)
+				updatePrediction3(true, 1);
+				
+			else if(mode == 4)
+				updatePrediction4(true, 1, rw, address);
+			// Prediction part ends
+			
+			hit = 1;                                          		// Setting the hit flag as true
+			if(rw == 'w')
+				L1_tagStore[index][i].dirtyBit = 1;                	// If the hit element is a write, set the dirty bit as true
+			break;
 		}
 	}
+	
+	// Checking the accuracy of prediction
+	if(prediction == true && hit == true)
+		p_stats->l1_correct_prediction++;
+	if(prediction == true && hit == false)
+		p_stats->l1_wrong_prediction++;
+	if(prediction == false && hit == true)
+		p_stats->l1_wrong_prediction++;
+	if(prediction == false && hit == false)
+		p_stats->l1_correct_prediction++;
 
-	// This loop is for cases when the block is not present and we have to bring in a new block
+	// There is no hit in the L1 cache
 	if(hit == 0)
 	{
-		search=lru1[ind][llast];
-		//cout<<"tag going to be replaced "<<hex<<search<<"\n";
-	
-		// Checking the tag store for the tag that is going to be replaced, so that we can reconstruct the address and send it to L2
-		for(int i=0;i<pow(2,S1);i++)
+		// Prediction part begins
+		if(mode == 1)
 		{
-			if(search==pt1[ind].p1[i].tage)
-			{
-				// This is the part where the block is evicted, so here we reconstruct the address and send it to l2 if block has dirty bit =1
-				if(pt1[ind].p1[i].d==1)
-				{
-					pt1[ind].p1[i].d=0;		//resetting the dirty it and evicting the block
-					// Search is nothing but the 'tag' so we left shift by 'index' number of bits and reconstruct the address
-					readd=search;
-					readd=readd<<(C1-B1-S1);
-					readd=readd+ind;
-					readd=readd<<(B1);
-					l2access(readd,'w',p_stats);
-				}
+			updateHash1(address, 1, true);
+			updateHash2(address, 1, true);		
+		}
 				
-				pt1[ind].p1[i].v=1;
-				pt1[ind].p1[i].tage=tag;
+		else if(mode == 2)
+			updatePrediction2(false, 1, rw);
+				
+		else if(mode == 3)
+			updatePrediction3(false, 1);
 			
-				if(rw=='w')
-				{
-					pt1[ind].p1[i].d=1;
-					p_stats->L1_write_misses++;
-					//cout<<" write miss for "<<hex<<tag<<"and index"<<hex<<ind<<" and address "<<hex<<address<<"and putting it in set"<<i<<"\n" ;
-				}
-			
-				else
-				{
-					pt1[ind].p1[i].d=0;
-					p_stats->L1_read_misses++;
-					//cout<<" read miss for "<<hex<<tag<<"and index"<<hex<<ind<< " and address "<<hex<<address<<"and putting it in set"<<i<<"\n";
-				}
-			
-				for(int j=pow(2,S1);j>0;j--)
-				{
-					lru1[ind][j]=lru1[ind][j-1];
-				}
-			
-				lru1[ind][0]=tag;
-				break;
-			}
+		else if(mode == 4)
+			updatePrediction4(false, 1, rw, address);
+		// Prediction part ends
+		
+		//p_stats->misses++;                                     		// Incrementing the miss counter
+		if(rw == 'r')
+			p_stats->l1_read_misses++;                            	// If the access is read, increment the read miss counter
+		else
+			p_stats->l1_write_misses++;                             // If the access is write, increment the write miss counter
+
+		// Finding the LRU block
+		maxValue = 0;
+		for(int i = 0; i < L1_numWays; i++)
+		{
+			if(L1_tagStore[index][i].lruCounter > maxValue)
+			{
+				maxValue = L1_tagStore[index][i].lruCounter;
+				maxIndex = i;
+			}   
+		}    
+
+		// Calculating the regenerated address
+		uint64_t readd = L1_tagStore[index][maxIndex].tag;
+		readd = readd << (C1 - B1 - S1);
+		readd = readd + index;
+		readd = readd << B1;
+		if(mode == 1)
+		{
+			updateHash1(readd, 1, false);
+			updateHash2(readd, 1, false);		
 		}
 
-		l2access(address, 'r',p_stats);
-	}
+		// Modifying LRU block
+		if(L1_tagStore[index][maxIndex].dirtyBit == 1)
+		{
+			L1_wb++;
+			l2_access('w', readd, p_stats);
+		}
+
+		L1_tagStore[index][maxIndex].tag = tag;                                           // Storing the tag value in the tag compartment of LRU block 
+		if(rw == 'w')
+			L1_tagStore[index][maxIndex].dirtyBit = 1;                                    // If the access is a write, set the dirty bit as true
+		else
+			L1_tagStore[index][maxIndex].dirtyBit = 0; 
+		L1_tagStore[index][maxIndex].lruCounter = 0;                                      // Making that block as MRU   
+		
+		l2_access('r', address, p_stats);
+	}  
 }
 
-// Backup of Previous L2
-/*
-void l2access( uint64_t add2, char rw, cache_stats_t* p_stats )
+void l2_access(char rw, uint64_t address, cache_stats_t* p_stats)
 {
-	p_stats->L2_accesses++;
+	p_stats->l2_accesses++;                                       // Incrementing the access counter after every cache access
+		
+	if(rw == 'r')                                                 // Checking if the current cache access is read or write
+		p_stats->l2_reads++;
+	else
+		p_stats->l2_writes++;
+		
+	// Now we have to split the address
 
-	// Start Prediction based on the Hashing Table
-	getPrediction(add2, p_stats);
-	// Finish Prediction
-
-	// Start Hashing
-	hash1(add2, 1);
-	hash2(add2, 1);
-	//hash3(add2, 1);
-	// Finish Hashing
-
-	uint64_t tag;  
-	uint64_t ind;
-	
-	// New Logic for finding tag and index
-	
-	// Finding index and tag
-	uint64_t temp_address = add2 >> B2; 
+	// Find temp_address by shifting 'B2' bits
+	uint64_t temp_address = address >> B2;   
 
 	// To find out the index, we will generate a mask first
 	uint64_t mask = pow(2, C2-B2-S2) - 1;
-	ind = temp_address & mask;
-
-	// Find Tag by shifting 'C-S' bits
-	tag = add2 >> (C2-S2);
-	int hit = 0;
-	uint64_t search;
-	uint64_t llast = pow(2, S2) - pow(2, 0);
+	uint64_t index = temp_address & mask;
+	  
+	// Find Tag by shifting 'C2-S2' bits
+	uint64_t tag = address >> (C2-S2);
 	
-	
-	//Start searching in l2
-
-	//This loop is for cases when the block is already present and we just have to change the lru order and the attribute
-	for(int j=0;j<(pow(2,S2));j++)
-	{
-		if((pt2[ind].p2[j].tage==tag)&& (pt2[ind].p2[j].v==1))
-		{
-			//cout<<"hit for tag "<<hex<<tag<<"and index"<<hex<<ind<<"  and address"<<address<<"in set "<<j<<"\n";
-			for(uint64_t i=0;i<ssize1;i++)
-			{
-				if(tag==lru2[ind][i])
-				{
-					for(int k=i;k>0;k--)
-					{
-						lru2[ind][k]=lru2[ind][k-1];
-					}
-				p_stats->L2_hits++;
-				hit=1;
-				break;
-				}
-			}
-			
-		lru2[ind][0]=tag;
-		if(rw=='w')
-		{
-			pt2[ind].p2[j].d=1;
-		}
-		
-		break;
-		}
-	}
-	
-	// This loop is for cases when the block is not present and we have to bring in a new block
-	if(hit==0)
-	{
-		search=lru2[ind][llast];
-		//cout<<"tag going to be replaced "<<hex<<search<<"\n";
-	
-		for(int i=0;i<pow(2,S2);i++)
-		{
-			if(search==pt2[ind].p2[i].tage)
-			{
-				//this is the part where the block is evicted, so here we reconstruct the address and send it to main memory if block has dirty bit =1
-				if(pt2[ind].p2[i].d==1)
-				{
-					pt2[ind].p2[i].d=0;//resetting the dirty bit and evicting the block
-					readd=search;
-					readd=readd<<(C2-B2-S2);//address reconstruction
-					readd=readd+ind;
-					readd=readd<<(B2);
-			
-					// Generating hashes and decrementing position in Hash Table
-					hash1(readd, 0);
-					hash2(readd, 0);
-					//hash3(readd, 0);
-			
-					p_stats->write_backs++;
-				}
-		
-		
-				pt2[ind].p2[i].v=1;
-				pt2[ind].p2[i].tage=tag;
-			
-				if(rw=='w')
-				{
-					pt2[ind].p2[i].d=1;
-					p_stats->L2_write_misses++;
-					//cout<<" write miss for "<<hex<<tag<<"and index"<<hex<<ind<<" and address "<<hex<<address<<"and putting it in set"<<i<<"\n" ;
-				}
-			
-				else
-				{
-					pt2[ind].p2[i].d=0;
-					p_stats->L2_read_misses++;
-					//cout<<" read miss for "<<hex<<tag<<"and index"<<hex<<ind<< " and address "<<hex<<address<<"and putting it in set"<<i<<"\n";
-				}
-			
-				for(int j=pow(2,S2);j>0;j--)
-				{
-					lru2[ind][j]=lru2[ind][j-1];
-				}
-			
-				lru2[ind][0]=tag;
-				break;
-		
-			}
-		}
-	}
-}
-*/
-
-
-// Code for L2 Access
-void l2access( uint64_t add2, char rw, cache_stats_t* p_stats )
-{
-	p_stats->L2_accesses++;
-	int level = 2;
-	
-	// Start Prediction based on the Hashing Table
+	// Prediction begins
 	bool prediction;
-	prediction = getPrediction(add2, p_stats, level);
-	// Finish Prediction
-
-	// Start Hashing
-	hash1(add2, 1, level);
-	hash2(add2, 1, level);
-	// Finish Hashing
-
-	uint64_t tag;  
-	uint64_t ind;
-	uint64_t search;
-	uint64_t llast=pow(2,S2)-pow(2,0);
-
-	// Finding index and tag
-	uint64_t temp_address = add2 >> B1; 
-
-	// To find out the index, we will generate a mask first
-	uint64_t mask = pow(2,C2-B2-S2) - 1;
-	ind = temp_address & mask;
-
-	// Find Tag by shifting 'C-S' bits
-	tag = add2 >> (C2-S2);
-	bool hit = false;
-
-	//Start searching in L2
-
-	//This loop is for cases when the block is already present and we just have to change the lru order and the attribute
-	for(int j=0;j<(pow(2,S2));j++)
+	
+	if(mode == 1)
+		prediction = getPrediction1(address, 2, p_stats->l2_accesses, p_stats, rw);
+		
+	else if(mode == 2)
+		prediction = getPrediction2(2, rw);
+		
+	else if(mode == 3)
+		prediction = getPrediction3(2);
+	/*	
+	else if (mode == 4)
 	{
-		// If there is a hit, we put the tag in the MRU position
-		if((pt2[ind].p2[j].tage==tag) && (pt2[ind].p2[j].v==1))
+		if(rw == 'r')
+			prediction = false;
+		else if(rw == 'w')
+			prediction = true;
+	}
+	*/
+		
+	else if(mode == 4)
+		prediction = getPrediction4(2, rw, address, p_stats);
+		
+	// Prediction ends
+	
+	// First increment the time-stamp of each ways.
+	for(int i = 0; i < L2_numWays; i++)
+	{
+		L2_tagStore[index][i].lruCounter++;
+	}
+	
+	bool hit = 0;
+	// Check if there is a hit
+	for(int i = 0; i < L2_numWays; i++)
+	{
+		if(L2_tagStore[index][i].tag == tag)
 		{
-		//cout<<"hit for tag "<<hex<<tag<<"and index"<<hex<<ind<<"  and address"<<address<<"in set "<<j<<"\n";
-			for(uint64_t i=0;i<ssize1;i++)
+			L2_tagStore[index][i].lruCounter = 0;                	// Making it as MRU
+			
+			// Prediction part begins
+			if(mode == 1)
 			{
-				if(tag==lru2[ind][i])
-				{
-					for(int k=i;k>0;k--)
-					{
-						lru2[ind][k]=lru2[ind][k-1];
-					}
-					p_stats->L2_hits++;
-					hit = true;
-					break;
-				}
+				updateHash1(address, 2, true);
+				updateHash2(address, 2, true);			
 			}
-	
-		lru2[ind][0]=tag;
-		if(rw=='w')
-		{
-			pt2[ind].p2[j].d=1;
-		}
-		
-		break;
-		}
-	}
-	
-	if (prediction == true && hit == true)
-	{
-		l2_correct_true++;
-		p_stats->l2_correct_pred++;
-	}
-	
-	else if (prediction == true && hit == false)
-	{
-		l2_wrong_true++;
-		p_stats->l2_wrong_pred++;
-	}
-		
-	else if (prediction == false && hit == true)
-	{
-		l2_wrong_false++;
-		p_stats->l2_wrong_pred++;
-	}
-	
-	else if (prediction == false && hit == false)
-	{
-		l2_correct_false++;
-		p_stats->l2_correct_pred++;
-	}
-
-	// This loop is for cases when the block is not present and we have to bring in a new block
-	if(hit == false)
-	{
-		search=lru2[ind][llast];
-		//cout<<"tag going to be replaced "<<hex<<search<<"\n";
-	
-		// Checking the tag store for the tag that is going to be replaced, so that we can reconstruct the address and send it to L2
-		for(int i=0;i<pow(2,S2);i++)
-		{
-			if(search==pt2[ind].p2[i].tage)
-			{
-				// This is the part where the block is evicted, so here we reconstruct the address and send it to l2 if block has dirty bit =1
-				if(pt2[ind].p2[i].d==1)
-				{
-					pt2[ind].p2[i].d=0;		//resetting the dirty it and evicting the block
-					// Search is nothing but the 'tag' so we left shift by 'index' number of bits and reconstruct the address
-					readd=search;
-					readd=readd << (C2 - B2 - S2);
-					readd=readd + ind;
-					readd=readd<<(B2);
-					
-					// Generating hashes and decrementing position in Hash Table
-					hash1(readd, 0, level);
-					hash2(readd, 0, level);
-					
-					l3access(readd,'w',p_stats);
-				}
 				
-				pt2[ind].p2[i].v=1;
-				pt2[ind].p2[i].tage=tag;
+			else if(mode == 2)
+				updatePrediction2(true, 2, rw);
+				
+			else if(mode == 3)
+				updatePrediction3(true, 2);
+				
+			else if(mode == 4)
+				updatePrediction4(true, 2, rw, address);
+			// Prediction part ends
 			
-				if(rw=='w')
-				{
-					pt2[ind].p2[i].d=1;
-					p_stats->L2_write_misses++;
-					//cout<<" write miss for "<<hex<<tag<<"and index"<<hex<<ind<<" and address "<<hex<<address<<"and putting it in set"<<i<<"\n" ;
-				}
+			hit = 1;                                          		// Setting the hit flag as true
+			if(rw == 'w')
+				L2_tagStore[index][i].dirtyBit = 1;                	// If the hit element is a write, set the dirty bit as true
+			break;
+		}
+	}
+	
+	// Checking the accuracy of prediction
+	if(prediction == true && hit == true)
+		p_stats->l2_correct_prediction++;
+	if(prediction == true && hit == false)
+		p_stats->l2_wrong_prediction++;
+	if(prediction == false && hit == true)
+		p_stats->l2_wrong_prediction++;
+	if(prediction == false && hit == false)
+		p_stats->l2_correct_prediction++;	
+	
+	// There is no hit in the L2 cache
+	if(hit == 0)
+	{
+		// Prediction part begins
+		if(mode == 1)
+		{
+			updateHash1(address, 2, true);
+			updateHash2(address, 2, true);			
+		}
+				
+		else if(mode == 2)
+			updatePrediction2(false, 2, rw);
+				
+		else if(mode == 3)
+			updatePrediction3(false, 2);
 			
-				else
-				{
-					pt2[ind].p2[i].d=0;
-					p_stats->L2_read_misses++;
-					//cout<<" read miss for "<<hex<<tag<<"and index"<<hex<<ind<< " and address "<<hex<<address<<"and putting it in set"<<i<<"\n";
-				}
-			
-				for(int j=pow(2,S2);j>0;j--)
-				{
-					lru2[ind][j]=lru2[ind][j-1];
-				}
-			
-				lru2[ind][0]=tag;
-				break;
-			}
+		else if(mode == 4)
+			updatePrediction4(false, 2, rw, address);
+		// Prediction part ends
+	
+		if(rw == 'r')
+			p_stats->l2_read_misses++;                            	// If the access is read, increment the read miss counter
+		else
+			p_stats->l2_write_misses++;                             // If the access is write, increment the write miss counter
+
+		// Finding the LRU block
+		maxValue = 0;
+		for(int i = 0; i < L2_numWays; i++)
+		{
+			if(L2_tagStore[index][i].lruCounter > maxValue)
+			{
+				maxValue = L2_tagStore[index][i].lruCounter;
+				maxIndex = i;
+			}   
+		}    
+
+		// Calculating the regenerated address
+		uint64_t readd = L2_tagStore[index][maxIndex].tag;
+		readd = readd << (C2 - B2 - S2);
+		readd = readd + index;
+		readd = readd << B2;
+		if(mode == 1)
+		{
+			updateHash1(readd, 2, false);
+			updateHash2(readd, 2, false);		
 		}
 
-		l3access(add2, 'r', p_stats);
-	}
+		// Modifying LRU block
+		if(L2_tagStore[index][maxIndex].dirtyBit == 1)
+		{
+			L2_wb++;
+			l3_access('w', readd, p_stats);
+		}
+
+		L2_tagStore[index][maxIndex].tag = tag;                                           // Storing the tag value in the tag compartment of LRU block 
+		if(rw == 'w')
+			L2_tagStore[index][maxIndex].dirtyBit = 1;                                    // If the access is a write, set the dirty bit as true
+		else
+			L2_tagStore[index][maxIndex].dirtyBit = 0; 
+		L2_tagStore[index][maxIndex].lruCounter = 0;                                      // Making that block as MRU   
+		
+		l3_access('r', address, p_stats);
+	} 
 }
 
-// Code for L3 Access
-void l3access( uint64_t add3, char rw, cache_stats_t* p_stats )
+void l3_access(char rw, uint64_t address, cache_stats_t* p_stats)
 {
-	p_stats->L3_accesses++;
-	int level = 3;
+	p_stats->l3_accesses++;                                       // Incrementing the access counter after every cache access
+		
+	if(rw == 'r')                                                 // Checking if the current cache access is read or write
+		p_stats->l3_reads++;
+	else
+		p_stats->l3_writes++;
+		
+	// Now we have to split the address
 
-	// Start Prediction based on the Hashing Table
-	bool prediction;
-	prediction = getPrediction(add3, p_stats, level);
-	// Finish Prediction
-
-	// Start Hashing
-	hash1(add3, 1, level);
-	hash2(add3, 1, level);
-	// Finish Hashing
-
-	uint64_t tag;  
-	uint64_t ind;
-	
-	// New Logic for finding tag and index
-	
-	// Finding index and tag
-	uint64_t temp_address = add3 >> B3; 
+	// Find temp_address by shifting 'B3' bits
+	uint64_t temp_address = address >> B3;   
 
 	// To find out the index, we will generate a mask first
 	uint64_t mask = pow(2, C3-B3-S3) - 1;
-	ind = temp_address & mask;
-
-	// Find Tag by shifting 'C-S' bits
-	tag = add3 >> (C3-S3);
-	bool hit = false;
-	uint64_t search;
-	uint64_t llast = pow(2, S3) - pow(2, 0);
+	uint64_t index = temp_address & mask;
+	  
+	// Find Tag by shifting 'C3-S3' bits
+	uint64_t tag = address >> (C3-S3);
 	
-	//Start searching in l3
-
-	//This loop is for cases when the block is already present and we just have to change the lru order and the attribute
-	for(int j=0;j<(pow(2,S3));j++)
+	// Prediction begins
+	bool prediction;
+	
+	if(mode == 1)
+		prediction = getPrediction1(address, 3, p_stats->l3_accesses, p_stats, rw);
+		
+	else if(mode == 2)
+		prediction = getPrediction2(3, rw);
+		
+	else if(mode == 3)
+		prediction = getPrediction3(3);
+		
+	else if(mode == 4)
+		prediction = getPrediction4(3, rw, address, p_stats);
+	// Prediction ends
+	
+	// First increment the time-stamp of each ways.
+	for(int i = 0; i < L3_numWays; i++)
 	{
-		if((pt3[ind].p3[j].tage==tag)&& (pt3[ind].p3[j].v==1))
+		L3_tagStore[index][i].lruCounter++;
+	}
+	
+	bool hit = 0;
+	// Check if there is a hit
+	for(int i = 0; i < L3_numWays; i++)
+	{
+		if(L3_tagStore[index][i].tag == tag)
 		{
-			//cout<<"hit for tag "<<hex<<tag<<"and index"<<hex<<ind<<"  and address"<<address<<"in set "<<j<<"\n";
-			for(uint64_t i=0;i<ssize2;i++)
+			L3_tagStore[index][i].lruCounter = 0;                	// Making it as MRU
+			//p_stats->hits++;                                  		// Incrementing Hits counter
+			
+			// Prediction part begins
+			if(mode == 1)
 			{
-				if(tag==lru3[ind][i])
-				{
-					for(int k=i;k>0;k--)
-					{
-						lru3[ind][k]=lru3[ind][k-1];
-					}
-				p_stats->L3_hits++;
-				hit = true;
-				break;
-				}
+				updateHash1(address, 3, true);
+				updateHash2(address, 3, true);			
 			}
+				
+			else if(mode == 2)
+				updatePrediction2(true, 3, rw);
+				
+			else if(mode == 3)
+				updatePrediction3(true, 3);
+				
+			else if(mode == 4)
+				updatePrediction4(true, 3, rw, address);
+			// Prediction part ends
 			
-		lru3[ind][0]=tag;
-		if(rw=='w')
-		{
-			pt3[ind].p3[j].d=1;
-		}
-		
-		break;
+			hit = 1;                                          		// Setting the hit flag as true
+			if(rw == 'w')
+				L3_tagStore[index][i].dirtyBit = 1;                	// If the hit element is a write, set the dirty bit as true
+			break;
 		}
 	}
 	
-	if (prediction == true && hit == true)
-	{
-		l3_correct_true++;
-		p_stats->l3_correct_pred++;
-	}
+	// Checking the accuracy of prediction
+	if(prediction == true && hit == true)
+		p_stats->l3_correct_prediction++;
+	if(prediction == true && hit == false)
+		p_stats->l3_wrong_prediction++;
+	if(prediction == false && hit == true)
+		p_stats->l3_wrong_prediction++;
+	if(prediction == false && hit == false)
+		p_stats->l3_correct_prediction++;	
 	
-	else if (prediction == true && hit == false)
+	// There is no hit in the L3 cache
+	if(hit == 0)
 	{
-		l3_wrong_true++;
-		p_stats->l3_wrong_pred++;
-	}
-		
-	else if (prediction == false && hit == true)
-	{
-		l3_wrong_false++;
-		p_stats->l3_wrong_pred++;
-	}
-	
-	else if (prediction == false && hit == false)
-	{
-		l3_correct_false++;
-		p_stats->l3_correct_pred++;
-	}
-	
-	// This loop is for cases when the block is not present and we have to bring in a new block
-	if(hit == false)
-	{
-		search=lru3[ind][llast];
-		//cout<<"tag going to be replaced "<<hex<<search<<"\n";
-	
-		for(int i=0;i<pow(2,S3);i++)
+		// Prediction part begins
+		if(mode == 1)
 		{
-			if(search==pt3[ind].p3[i].tage)
+			updateHash1(address, 3, true);
+			updateHash2(address, 3, true);			
+		}
+				
+		else if(mode == 2)
+			updatePrediction2(false, 3, rw);
+				
+		else if(mode == 3)
+			updatePrediction3(false, 3);
+			
+		else if(mode == 4)
+			updatePrediction4(false, 3, rw, address);
+		// Prediction part ends
+	
+		if(rw == 'r')
+			p_stats->l3_read_misses++;                            	// If the access is read, increment the read miss counter
+		else
+			p_stats->l3_write_misses++;                             // If the access is write, increment the write miss counter
+
+		// Finding the LRU block
+		maxValue = 0;
+		for(int i = 0; i < L3_numWays; i++)
+		{
+			if(L3_tagStore[index][i].lruCounter > maxValue)
 			{
-				//this is the part where the block is evicted, so here we reconstruct the address and send it to main memory if block has dirty bit =1
-				if(pt3[ind].p3[i].d==1)
-				{
-					pt3[ind].p3[i].d=0;					//resetting the dirty bit and evicting the block
-					readd=search;
-					readd=readd<<(C3-B3-S3);			//address reconstruction
-					readd=readd+ind;
-					readd=readd<<(B3);
-			
-					// Generating hashes and decrementing position in Hash Table
-					hash1(readd, 0, level);
-					hash2(readd, 0, level);
-			
-					p_stats->write_backs++;
-				}
-		
-				pt3[ind].p3[i].v=1;
-				pt3[ind].p3[i].tage=tag;
-			
-				if(rw=='w')
-				{
-					pt3[ind].p3[i].d=1;
-					p_stats->L3_write_misses++;
-					//cout<<" write miss for "<<hex<<tag<<"and index"<<hex<<ind<<" and address "<<hex<<address<<"and putting it in set"<<i<<"\n" ;
-				}
-			
-				else
-				{
-					pt3[ind].p3[i].d=0;
-					p_stats->L3_read_misses++;
-					//cout<<" read miss for "<<hex<<tag<<"and index"<<hex<<ind<< " and address "<<hex<<address<<"and putting it in set"<<i<<"\n";
-				}
-			
-				for(int j=pow(2,S3);j>0;j--)
-				{
-					lru3[ind][j]=lru3[ind][j-1];
-				}
-			
-				lru3[ind][0]=tag;
-				break;
-		
-			}
+				maxValue = L3_tagStore[index][i].lruCounter;
+				maxIndex = i;
+			}   
+		}    
+
+		// Calculating the regenerated address
+		uint64_t readd = L3_tagStore[index][maxIndex].tag;
+		readd = readd << (C3 - B3 - S3);
+		readd = readd + index;
+		readd = readd << B3;
+		if(mode == 1)
+		{
+			updateHash1(readd, 3, false);
+			updateHash2(readd, 3, false);		
 		}
-	}
+
+		// Modifying LRU block
+		if(L3_tagStore[index][maxIndex].dirtyBit == 1)
+		{
+			p_stats->write_backs++;
+		}
+
+		L3_tagStore[index][maxIndex].tag = tag;                                           // Storing the tag value in the tag compartment of LRU block 
+		if(rw == 'w')
+			L3_tagStore[index][maxIndex].dirtyBit = 1;                                    // If the access is a write, set the dirty bit as true
+		else
+			L3_tagStore[index][maxIndex].dirtyBit = 0; 
+		L3_tagStore[index][maxIndex].lruCounter = 0;                                      // Making that block as MRU   
+	} 
 }
 
-/**
- * Subroutine for calculating overall statistics such as miss rate or average access time.
- *
- * @p_stats Pointer to the statistics structure
- */
-void complete_cache(cache_stats_t *p_stats) 
-{	
-	bool l2_debug = false;
-	bool l3_debug = false;
-
-	if (l2_debug)
-	{
-		cout << "Showing the Hash Table for L2:";
+void complete_cache(cache_stats_t *p_stats)
+{
+	L1_blockSize = pow(2,B1);
+	//cout << "L1 WB: " << L1_wb << endl;
+	//cout << "L2 WB: " << L2_wb << endl;
 	
-		for (int i = 0; i < 512; i += 1)
-		{
-		
-			if (i % 16 == 0)
-			{
-				cout << endl;
-			}
-			cout << l2_HashTable[i] << "\t";
-		}
-
-		cout << endl << endl;
+	p_stats->correct_prediction = p_stats->l1_correct_prediction + p_stats->l2_correct_prediction + p_stats->l3_correct_prediction;
+	p_stats->wrong_prediction = p_stats->l1_wrong_prediction + p_stats->l2_wrong_prediction + p_stats->l3_wrong_prediction;
 	
-		cout << "Showing the Normalized Hash Table:";
+	//displayHashTable(3);
+	//displayNormHashTable(3);
 	
-		for (int i = 0; i < 512; i += 1)
-		{
-		
-			if (i % 16 == 0)
-			{
-				cout << endl;
-			}
-			cout << setprecision(2) << l2_NormHashTable[i] << "\t";
-		}
-
-		cout << endl << endl;
-	}
+	mr_l1 = ((float)(p_stats->l1_read_misses + p_stats->l1_write_misses) / (float)p_stats->l1_accesses);
+	mr_l2 = ((float)(p_stats->l2_read_misses + p_stats->l2_write_misses) / (float)p_stats->l2_accesses);
+	mr_l3 = ((float)(p_stats->l3_read_misses + p_stats->l3_write_misses) / (float)p_stats->l3_accesses);
+	hr_l1 = 1 - mr_l1;
+	hr_l2 = 1 - mr_l2;
+	hr_l3 = 1 - mr_l3;
 	
+	uint64_t total_accesses = p_stats->l1_accesses + p_stats->l2_accesses + p_stats->l3_accesses;
+	float hr_overall = (float)(hr_l1 * p_stats->l1_accesses + hr_l2 * p_stats->l2_accesses + hr_l3 * p_stats->l3_accesses) / (float)total_accesses;
+	float mr_overall = 1 - hr_overall;
 	
+	cout << endl;
+	cout << "L1 Hit Rate: " << hr_l1 << endl;
+	cout << "L1 Miss Rate: " << mr_l1 << endl;
+	cout << "L2 Hit Rate: " << hr_l2 << endl;
+	cout << "L2 Miss Rate: " << mr_l2 << endl;
+	cout << "L3 Hit Rate: " << hr_l3 << endl;
+	cout << "L3 Miss Rate: " << mr_l3 << endl;
+	cout << "Overall Hit Rate: " << hr_overall << endl;
+	cout << "Overall Miss Rate: " << mr_overall << endl;
 	
-	if (l3_debug)
-	{
-		cout << "Showing the Hash Table for L3:";
+	float l1_baseline_aat = hr_l1 * 20 + mr_l1 * 140;
+	float l1_ideal_aat = hr_l1 * 20 + mr_l1 * 120;
+	float l1_accuracy = (float)p_stats->l1_correct_prediction / (float)(p_stats->l1_correct_prediction + p_stats->l1_wrong_prediction);
+	float l1_policy_aat = l1_accuracy * l1_ideal_aat + (1 - l1_accuracy) * l1_baseline_aat;
+	cout << "L1 Baseline AAT: " << l1_baseline_aat << endl;
+	cout << "L1 Ideal AAT: " << l1_ideal_aat << endl;
+	cout << "L1 Policy AAT: " << l1_policy_aat << endl;
 	
-		for (int i = 0; i < 512; i += 1)
-		{
-		
-			if (i % 16 == 0)
-			{
-				cout << endl;
-			}
-			cout << l3_HashTable[i] << "\t";
-		}
-
-		cout << endl << endl;
+	float l2_baseline_aat = hr_l2 * 40 + mr_l2 * 160;
+	float l2_ideal_aat = hr_l2 * 40 + mr_l2 * 120;
+	float l2_accuracy = (float)p_stats->l2_correct_prediction / (float)(p_stats->l2_correct_prediction + p_stats->l2_wrong_prediction);
+	float l2_policy_aat = l2_accuracy * l2_ideal_aat + (1 - l2_accuracy) * l2_baseline_aat;
+	cout << "L2 Baseline AAT: " << l2_baseline_aat << endl;
+	cout << "L2 Ideal AAT: " << l2_ideal_aat << endl;
+	cout << "L2 Policy AAT: " << l2_policy_aat << endl;
 	
-		cout << "Showing the Normalized Hash Table for L3:";
+	float l3_baseline_aat = hr_l3 * 60 + mr_l3 * 180;
+	float l3_ideal_aat = hr_l3 * 60 + mr_l3 * 120;
+	float l3_accuracy = (float)p_stats->l3_correct_prediction / (float)(p_stats->l3_correct_prediction + p_stats->l3_wrong_prediction);
+	float l3_policy_aat = l3_accuracy * l3_ideal_aat + (1 - l3_accuracy) * l3_baseline_aat;
+	cout << "L3 Baseline AAT: " << l3_baseline_aat << endl;
+	cout << "L3 Ideal AAT: " << l3_ideal_aat << endl;
+	cout << "L3 Policy AAT: " << l3_policy_aat << endl;
 	
-		for (int i = 0; i < 512; i += 1)
-		{
-		
-			if (i % 16 == 0)
-			{
-				cout << endl;
-			}
-			cout << setprecision(2) << l3_NormHashTable[i] << "\t";
-		}
-
-		cout << endl << endl;
-	}
+	float overall_baseline_aat = hr_overall * 20 + mr_overall * 140;
+	float overall_ideal_aat = hr_overall * 20 + mr_overall * 120;
+	float overall_accuracy = (float)p_stats->correct_prediction / (float)(p_stats->correct_prediction + p_stats->wrong_prediction);
+	float overall_policy_aat = overall_accuracy * overall_ideal_aat + (1 - overall_accuracy) * overall_baseline_aat;
+	cout << "Overall Baseline AAT: " << overall_baseline_aat << endl;
+	cout << "Overall Ideal AAT: " << overall_ideal_aat << endl;
+	cout << "Overall Policy AAT: " << overall_policy_aat << endl;
 	
-	bool predictor_debug = false;
-	
-	if(predictor_debug)
-	{
-		cout << "L2 Correct True: " << l2_correct_true << endl;
-		cout << "L2 Correct False: " << l2_correct_false << endl;
-		cout << "L2 Wrong True: " << l2_wrong_true << endl;
-		cout << "L2 Wrong False: " << l2_wrong_false << endl;
-	
-		cout << "L3 Correct True: " << l3_correct_true << endl;
-		cout << "L3 Correct False: " << l3_correct_false << endl;
-		cout << "L3 Wrong True: " << l3_wrong_true << endl;
-		cout << "L3 Wrong False: " << l3_wrong_false << endl;
-	
-		cout << "Total Correct True: " << l2_correct_true + l3_correct_true << endl;
-		cout << "Total Correct False: " << l2_correct_false + l3_correct_false << endl;
-		cout << "Total Wrong True: " << l2_wrong_true + l3_wrong_true << endl;
-		cout << "Total Wrong False: " << l2_wrong_false + l3_wrong_false << endl;
-	}
-	
-
+	cout << endl;
+	cout << "L1 Ideal Speedup: " << ((float)l1_baseline_aat / (float)l1_ideal_aat - 1) * 100 << endl;
+	cout << "L1 Policy Speedup: " << ((float)l1_baseline_aat / (float)l1_policy_aat - 1) * 100 << endl;
+	cout << "L2 Ideal Speedup: " << ((float)l2_baseline_aat / (float)l2_ideal_aat - 1) * 100 << endl;
+	cout << "L2 Policy Speedup: " << ((float)l2_baseline_aat / (float)l2_policy_aat - 1) * 100 << endl;
+	cout << "L3 Ideal Speedup: " << ((float)l3_baseline_aat / (float)l3_ideal_aat - 1) * 100 << endl;
+	cout << "L3 Policy Speedup: " << ((float)l3_baseline_aat / (float)l3_policy_aat - 1) * 100 << endl;
+	cout << "Overall Ideal Speedup: " << ((float)overall_baseline_aat / (float)overall_ideal_aat - 1) * 100 << endl;
+	cout << "Overall Policy Speedup: " << ((float)overall_baseline_aat / (float)overall_policy_aat - 1) * 100 << endl;
+	cout << endl;
 }
