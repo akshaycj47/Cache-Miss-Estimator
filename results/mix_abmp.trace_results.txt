@@ -1,0 +1,100 @@
+Cache Settings
+C1: 12
+B1: 6
+S1: 3
+C2: 15
+B2: 6
+S2: 5
+C3: 18
+B3: 6
+S3: 5
+
+
+L1 Hit Rate: 0.952214
+L1 Miss Rate: 0.0477856
+L2 Hit Rate: 0.679589
+L2 Miss Rate: 0.320411
+L3 Hit Rate: 0.586739
+L3 Miss Rate: 0.413261
+Overall Hit Rate: 0.921643
+Overall Miss Rate: 0.0783566
+L1 Baseline AAT: 25.7343
+L1 Ideal AAT: 24.7786
+L1 Policy AAT: 24.8237
+L2 Baseline AAT: 78.4493
+L2 Ideal AAT: 65.6329
+L2 Policy AAT: 67.2005
+L3 Baseline AAT: 109.591
+L3 Ideal AAT: 84.7957
+L3 Policy AAT: 86.1124
+Overall Baseline AAT: 29.4028
+Overall Ideal AAT: 27.8357
+Overall Policy AAT: 27.9177
+
+L1 Ideal Speedup: 3.857
+L1 Policy Speedup: 3.66806
+L2 Ideal Speedup: 19.5275
+L2 Policy Speedup: 16.7393
+L3 Ideal Speedup: 29.2417
+L3 Policy Speedup: 27.2653
+Overall Ideal Speedup: 5.62994
+Overall Policy Speedup: 5.31945
+
+Cache Statistics:
+L1 Accesses: 2061123
+Reads issued to L1: 1241344
+L1 Read misses: 58921
+Writes issued to L1: 819779
+L1 Write misses: 39571
+
+L2 Accesses: 149614
+Reads issued to L2: 98492
+L2 Read misses: 47881
+Writes issued to L2: 51122
+L2 Write misses: 57
+
+L3 Accesses: 80010
+Reads issued to L3: 47938
+L3 Read misses: 33059
+Writes issued to L3: 32072
+L3 Write misses: 6
+
+L1 correct predictions: 1963721
+L1 wrong predictions: 97402
+L1 Accuracy of predictions: 95
+
+L2 correct predictions: 131315
+L2 wrong predictions: 18299
+L2 Accuracy of predictions: 87
+
+L3 correct predictions: 75761
+L3 wrong predictions: 4249
+L3 Accuracy of predictions: 94
+
+Total correct predictions: 2170797
+Total wrong predictions: 119950
+Accuracy of predictions: 94
+
+L1 Hit Predictions with 80-100% confidence: 1761168
+L1 Hit Predictions with 60-80% confidence: 231837
+L1 Hit Predictions with 40-60% confidence: 46030
+L1 Hit Predictions with 20-40% confidence: 13706
+L1 Hit Predictions with 0-20% confidence: 8382
+
+L2 Hit Predictions with 80-100% confidence: 81974
+L2 Hit Predictions with 60-80% confidence: 14953
+L2 Hit Predictions with 40-60% confidence: 11290
+L2 Hit Predictions with 20-40% confidence: 9855
+L2 Hit Predictions with 0-20% confidence: 31542
+
+L3 Hit Predictions with 80-100% confidence: 42535
+L3 Hit Predictions with 60-80% confidence: 1963
+L3 Hit Predictions with 40-60% confidence: 2124
+L3 Hit Predictions with 20-40% confidence: 3449
+L3 Hit Predictions with 0-20% confidence: 29939
+
+L3 Hit Predictions with 80-100% confidence: 53.1621
+L3 Hit Predictions with 60-80% confidence: 2.45344
+L3 Hit Predictions with 40-60% confidence: 2.65467
+L3 Hit Predictions with 20-40% confidence: 4.31071
+L3 Hit Predictions with 0-20% confidence: 37.4191

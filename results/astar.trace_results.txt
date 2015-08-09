@@ -1,38 +1,100 @@
+Cache Settings
+C1: 12
+B1: 6
+S1: 3
+C2: 15
+B2: 6
+S2: 5
+C3: 18
+B3: 6
+S3: 5
 
-generating set associative cache for l1 
-generating set associative cache for l2 
-generating set associative cache for l3 
 
-Cache Statistics
+L1 Hit Rate: 0.933164
+L1 Miss Rate: 0.0668358
+L2 Hit Rate: 0.507283
+L2 Miss Rate: 0.492717
+L3 Hit Rate: 0.469845
+L3 Miss Rate: 0.530155
+Overall Hit Rate: 0.8587
+Overall Miss Rate: 0.1413
+L1 Baseline AAT: 28.0203
+L1 Ideal AAT: 26.6836
+L1 Policy AAT: 26.7732
+L2 Baseline AAT: 99.126
+L2 Ideal AAT: 79.4174
+L2 Policy AAT: 80.9653
+L3 Baseline AAT: 123.619
+L3 Ideal AAT: 91.8093
+L3 Policy AAT: 93.7454
+Overall Baseline AAT: 36.956
+Overall Ideal AAT: 34.13
+Overall Policy AAT: 34.3212
+
+L1 Ideal Speedup: 5.00951
+L1 Policy Speedup: 4.65786
+L2 Ideal Speedup: 24.8166
+L2 Policy Speedup: 22.4303
+L3 Ideal Speedup: 34.6471
+L3 Policy Speedup: 31.8663
+Overall Ideal Speedup: 8.28011
+Overall Policy Speedup: 7.67713
+
+Cache Statistics:
 L1 Accesses: 501468
-L2 Accesses: 92915
-L3 Accesses: 47443
-Reads Issued by CPU: 289766
-L1 Read misses: 14177
-L2 Read misses: 27688
-L3 Read misses: 13763
-Writes Issued by CPU: 211702
-L1 Write misses: 39111
-L2 Write misses: 39
-L3 Write misses: 9631
-L1 Hits: 448180
-L2 Hits: 65188
-L3 Hits: 24049
+Reads issued to L1: 289766
+L1 Read misses: 13131
+Writes issued to L1: 211702
+L1 Write misses: 20385
 
-Showing predictions for L2: 
-Hit Predictions with 80-100% confidence: 71924
-Hit Predictions with 60-80% confidence: 11196
-Hit Predictions with 40-60% confidence: 6496
-Hit Predictions with 20-40% confidence: 2238
-Hit Predictions with 0-20% confidence: 1061
-L2 Correct Predictions: 65310
-L2 Wrong Predictions: 27605
+L2 Accesses: 54648
+Reads issued to L2: 33516
+L2 Read misses: 26891
+Writes issued to L2: 21132
+L2 Write misses: 35
 
-Showing predictions for L3: 
-Hit Predictions with 80-100% confidence: 30108
-Hit Predictions with 60-80% confidence: 10700
-Hit Predictions with 40-60% confidence: 3841
-Hit Predictions with 20-40% confidence: 1442
-Hit Predictions with 0-20% confidence: 1352
-L3 Correct Predictions: 25707
-L3 Wrong Predictions: 21736
+L3 Accesses: 46643
+Reads issued to L3: 26926
+L3 Read misses: 24728
+Writes issued to L3: 19717
+L3 Write misses: 0
+
+L1 correct predictions: 467834
+L1 wrong predictions: 33634
+L1 Accuracy of predictions: 93
+
+L2 correct predictions: 50356
+L2 wrong predictions: 4292
+L2 Accuracy of predictions: 92
+
+L3 correct predictions: 43804
+L3 wrong predictions: 2839
+L3 Accuracy of predictions: 93
+
+Total correct predictions: 561994
+Total wrong predictions: 40765
+Accuracy of predictions: 93
+
+L1 Hit Predictions with 80-100% confidence: 383362
+L1 Hit Predictions with 60-80% confidence: 105044
+L1 Hit Predictions with 40-60% confidence: 7970
+L1 Hit Predictions with 20-40% confidence: 2642
+L1 Hit Predictions with 0-20% confidence: 2450
+
+L2 Hit Predictions with 80-100% confidence: 24139
+L2 Hit Predictions with 60-80% confidence: 1949
+L2 Hit Predictions with 40-60% confidence: 2146
+L2 Hit Predictions with 20-40% confidence: 3334
+L2 Hit Predictions with 0-20% confidence: 23080
+
+L3 Hit Predictions with 80-100% confidence: 19905
+L3 Hit Predictions with 60-80% confidence: 739
+L3 Hit Predictions with 40-60% confidence: 1518
+L3 Hit Predictions with 20-40% confidence: 2787
+L3 Hit Predictions with 0-20% confidence: 21694
+
+L3 Hit Predictions with 80-100% confidence: 42.6752
+L3 Hit Predictions with 60-80% confidence: 1.58437
+L3 Hit Predictions with 40-60% confidence: 3.25451
+L3 Hit Predictions with 20-40% confidence: 5.97517
+L3 Hit Predictions with 0-20% confidence: 46.5107
