@@ -1,5 +1,5 @@
 # Cache-Miss-Estimator
-Integrated Cache Miss Estimator for a multi level cache. Predicts whether a given block is present in the cache or not with a notion on confidence.
+Integrated Cache Miss Estimator for a multi level cache. Predicts whether a given block is present in the cache or not with a notion of confidence.
 
 In order to view the results, run the script file in the C++ folder. You may have to give permission using chmod 777 run_script.sh
 
