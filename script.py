@@ -8,8 +8,8 @@ import subprocess
 
 def run_experiments(traces_directory):
 	"""
-	Simple function that compiles the 'cachesim' program and generates
-	output for all the traces in the traces directory
+		Simple function that compiles the 'cachesim' program and generates
+		output for all the traces in the traces directory
 	"""
 	# First compile the source code
 	subprocess.call("make", shell = True)
@@ -21,8 +21,8 @@ def run_experiments(traces_directory):
 	
 def main():
 	"""
-	Main function which starts running the experiments
-	The traces directory name is given as a command line argument
+		Main function which starts running the experiments
+		The traces directory name is given as a command line argument
 	"""
 	
 	if len(sys.argv) != 2:
