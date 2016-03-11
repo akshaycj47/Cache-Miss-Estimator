@@ -17,6 +17,16 @@ or
 $ ./script.py
 ```
 
+Project Structure
+=================
+* ```cachesim.cpp```: Cache simulator with LRU replacement and WBWA policy.
+* ```cachesim_driver.cpp```: Driver code for initial setup, and displaying the results.
+* ```cachesim_prediction.cpp```: Prediction logic for cache miss estimation.
+* ```Makefile```: Build the project.
+* ```script.py```: Python script with Tkinter GUI to perform experiments.
+* ```traces```: Directory that contains the traces used in the project.
+* ```results```: Directory that stores the results of the experiments.
+* ```Report+PPT```: Directory that contains the project report and presentation.
 
 Project updates
 ===============
