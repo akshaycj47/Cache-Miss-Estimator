@@ -3,7 +3,7 @@ Integrated Cache Miss Estimator for a multi level cache. Predicts whether a give
 
 
 Usage
-===========
+=====
 [NEW FEATURE] Run the experiments using Python script 
 This opens a GUI which allows for a better user experience. Enter all the arguments and hit the 'Experiments' button.
 ```
@@ -14,6 +14,9 @@ or
 $ ./script.py
 ```
 
+
+Project updates
+===============
 v1.2 [2015/03/05] First commit with poor results for L3.
 
 v2.0 [2015/04/21] Final miss estimator with separate cpp files to generate prediction.
