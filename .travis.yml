@@ -1,5 +1,10 @@
 language: cpp
 
-script: script
+script: script.py
 
-sudo: required
+os:
+- linux
+- osx
+
+notifications:
+	email: false
