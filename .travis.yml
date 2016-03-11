@@ -1,6 +1,6 @@
 language: cpp
 
-script: script.py
+install: ./script.py
 
 os:
 - linux
