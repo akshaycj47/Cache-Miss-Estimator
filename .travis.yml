@@ -1,6 +1,8 @@
 language: cpp
 
-install: ./script.py
+compiler: clang
+
+install: make
 
 os:
 - linux
