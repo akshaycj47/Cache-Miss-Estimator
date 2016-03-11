@@ -1,6 +1,8 @@
 #!/usr/bin/python -tt
 
-""" Simple script to run the experiments of Cache Simulator """
+""" 
+	Simple script to run the experiments of Cache Simulator
+"""
 
 import os
 import sys
@@ -45,11 +47,11 @@ USER_INPUT_ARGS = [
 	},
 ]
 
+"""
+	Simple function that compiles the 'cachesim' program and generates
+	output for all the traces in the traces directory
+"""
 def run_experiments(traces_directory, results_directory, traces_list):
-	"""
-		Simple function that compiles the 'cachesim' program and generates
-		output for all the traces in the traces directory
-	"""
 	# First compile the source code
 	subprocess.call("make", shell = True)
 	
@@ -63,11 +65,11 @@ def run_experiments(traces_directory, results_directory, traces_list):
 		result_location = os.path.join(results_directory, trace)
 
 		subprocess.call("./cachesim < " + trace_location + " > " + result_location + "_results.txt", shell = True)
-	
+
+"""
+	Function to determine which traces to use for experimentation
+"""	
 def get_traces(traces):
-	"""
-		Function to determine which traces to use for experimentation
-	"""
 	traces_list = []
 
 	if traces == "ALL":
@@ -97,19 +99,20 @@ def get_traces(traces):
 
 	return traces_list
 
+"""
+	Clear the contents of the result directory
+"""
 def clean_results(results_directory):
-	"""
-		Clear the contents of the result directory
-	"""
+	
 	for file in os.listdir(results_directory):
 		file_to_remove = os.path.join(results_directory, file)
 		print "Deleting " + file_to_remove
 		os.remove(file_to_remove)
 
+"""
+	Display Tkinter GUI for better user experience
+"""
 def get_gui_inputs(args):
-	"""
-		Display Tkinter GUI for better user experience
-	"""
 	bindings = {}
 	avars = vars(args)
 
@@ -181,12 +184,11 @@ def get_gui_inputs(args):
 
 	return args
 
+"""
+	Main function which starts running the experiments
+	The traces directory name is given as a command line argument
+"""
 def main():
-	"""
-		Main function which starts running the experiments
-		The traces directory name is given as a command line argument
-	"""
-
 	parser = argparse.ArgumentParser(description="Script to find the minimum Average Access Time (AAT) for a \
 												  given trace. User has to choose between default and manual \
 												  configuration. In default configuration, upper and lower \
