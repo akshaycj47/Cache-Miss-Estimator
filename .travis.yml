@@ -1,8 +1,6 @@
-language: cpp
+language: python
 
-compiler: clang
-
-install: make
+script: ./script_travis.py
 
 os:
 - linux
