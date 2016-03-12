@@ -1,5 +1,9 @@
 language: python
 
+sudo: required
+
+before_script: chmod +777 script_travis.py
+
 script: ./script_travis.py
 
 os:
